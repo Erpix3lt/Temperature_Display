@@ -5,8 +5,8 @@
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
 
-const char* ssid = "Insert Wifi Name";
-const char* password = "Insert Wifi Password";
+const char* ssid = "Vodafone-EC75";
+const char* password = "TJcgACmUmRQmQgpu";
 AsyncWebServer server(80);
 
 #define CLK 22
