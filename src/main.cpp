@@ -5,41 +5,56 @@
 #include "WiFi.h"
 #include "ESPAsyncWebServer.h"
 
-const char* ssid = "Vodafone-EC75";
-const char* password = "TJcgACmUmRQmQgpu";
+const char *ssid = "CoCoLabor";
+const char *password = "cocolabor1234";
 AsyncWebServer server(80);
 
 #define CLK 22
 #define DIO 21
 #define DHTPIN 14
 #define DHTTYPE DHT11
+#define PIEZO 26
+#define LIGHT 34
 
 DHT dht(DHTPIN, DHTTYPE);
+boolean wasOpened = false;
 
-String readDHTTemperature() {
+String getWasOpened(){
+  String siegel;
+  if(wasOpened){
+     siegel = "ist gebrochen";
+  }
+  else{
+     siegel = "ist aktiviert";
+  }
+  return siegel;
+}
+
+String readDHTTemperature()
+{
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   // Read temperature as Celsius (the default)
   float t = dht.readTemperature();
-  
-  
-    Serial.println(t);
-    return String(t);
-  
+
+  Serial.println(t);
+  return String(t);
 }
 
-String readDHTHumidity() {
+String readDHTHumidity()
+{
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float h = dht.readHumidity();
-  if (isnan(h)) {
+  if (isnan(h))
+  {
     Serial.println("Failed to read from DHT sensor!");
     return "--";
   }
-  else {
+  else
+  {
     Serial.println(h);
     return String(h);
   }
 }
-
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
@@ -64,7 +79,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h2>ESP32 DHT Server</h2>
+  <h2>Medical Distribution Service</h2>
+  <h3>Temperature Tracking</h3>
   <p>
     <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
     <span class="dht-labels">Temperature</span> 
@@ -72,11 +88,11 @@ const char index_html[] PROGMEM = R"rawliteral(
     <sup class="units">&deg;C</sup>
   </p>
   <p>
-    <i class="fas fa-tint" style="color:#00add6;"></i> 
-    <span class="dht-labels">Humidity</span>
-    <span id="humidity">%HUMIDITY%</span>
-    <sup class="units">&percnt;</sup>
+    <i class="fas fa-stamp" style="color:#059e8a;"></i> 
+    <span class="dht-labels">Siegel</span> 
+    <span id="siegel">%SIEGEL%</span>
   </p>
+  
 </body>
 <script>
 setInterval(function ( ) {
@@ -88,55 +104,58 @@ setInterval(function ( ) {
   };
   xhttp.open("GET", "/temperature", true);
   xhttp.send();
-}, 10000 ) ;
+}, 1000 ) ;
 
 setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("humidity").innerHTML = this.responseText;
+      document.getElementById("siegel").innerHTML = this.responseText;
     }
   };
-  xhttp.open("GET", "/humidity", true);
+  xhttp.open("GET", "/siegel", true);
   xhttp.send();
-}, 10000 ) ;
+}, 1000 ) ;
 </script>
 </html>)rawliteral";
 
 // Replaces placeholder with DHT values
-String processor(const String& var){
+String processor(const String &var)
+{
   //Serial.println(var);
-  if(var == "TEMPERATURE"){
+  if (var == "TEMPERATURE")
+  {
     return readDHTTemperature();
   }
-  else if(var == "HUMIDITY"){
-    return readDHTHumidity();
+  else if(var == "SIEGEL"){
+    return getWasOpened();
   }
   return String();
 }
 
-
 TM1637Display display = TM1637Display(CLK, DIO);
 
 const uint8_t celsius[] = {
-  SEG_A | SEG_B | SEG_F | SEG_G,  // Circle
-  SEG_A | SEG_D | SEG_E | SEG_F   // C
+    SEG_A | SEG_B | SEG_F | SEG_G, // Circle
+    SEG_A | SEG_D | SEG_E | SEG_F  // C
 };
 
 const uint8_t percent[] = {
-  SEG_E | SEG_F,  // I
-  SEG_E | SEG_F | SEG_A | SEG_B | SEG_G   // P
+    SEG_E | SEG_F,                        // I
+    SEG_E | SEG_F | SEG_A | SEG_B | SEG_G // P
 };
 
-void setup() {
+void setup()
+{
   // Serial port for debugging purposes
   Serial.begin(9600);
 
   dht.begin();
-  
+
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED)
+  {
     delay(1000);
     Serial.println("Connecting to WiFi..");
   }
@@ -145,48 +164,65 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", index_html, processor);
-  });
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", readDHTTemperature().c_str());
-  });
-  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", readDHTHumidity().c_str());
-  });
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/html", index_html, processor); });
+  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/plain", readDHTTemperature().c_str()); });
+  server.on("/siegel", HTTP_GET, [](AsyncWebServerRequest *request)
+            { request->send_P(200, "text/plain", getWasOpened().c_str()); });
 
-  if (!MDNS.begin("temperature-station")) {
-        Serial.println("Error setting up MDNS responder!");
-        while(1) {
-            delay(1000);
-        }
+  if (!MDNS.begin("temperature-station"))
+  {
+    Serial.println("Error setting up MDNS responder!");
+    while (1)
+    {
+      delay(1000);
     }
-    Serial.println("mDNS responder started");
+  }
+  Serial.println("mDNS responder started");
 
-    // Start TCP (HTTP) server
-    server.begin();
-    Serial.println("TCP server started");
+  // Start TCP (HTTP) server
+  server.begin();
+  Serial.println("TCP server started");
 
-    // Add service to MDNS-SD
-    MDNS.addService("http", "tcp", 80);
+  // Add service to MDNS-SD
+  MDNS.addService("http", "tcp", 80);
+
+  pinMode(PIEZO, OUTPUT);
 }
 
-void loop() {
+void loop()
+{
   display.setBrightness(7);
   display.clear();
   delay(1000);
 
-
   float temperatureInCelcius = dht.readTemperature();
-  float humidity = dht.readHumidity();
+  int lightValue = analogRead(LIGHT);
+  
+  Serial.println(lightValue);
 
-  display.showNumberDec(temperatureInCelcius, false, 2, 0);
-  display.setSegments(celsius, 2, 2);
+  if (temperatureInCelcius > 25)
+  {
+    digitalWrite(PIEZO, HIGH);
+    delay(100);
+    digitalWrite(PIEZO, LOW);
+    delay(100);
+  }
 
-  delay(2000);
+  if (lightValue > 100)
+  {
+    if (!wasOpened)
+    {
+      wasOpened = true;
 
-  display.clear();
-  display.showNumberDec(humidity, false, 2, 0);
-  display.setSegments(percent, 2, 2);
-  delay(2000);
+      digitalWrite(PIEZO, HIGH);
+      delay(100);
+      digitalWrite(PIEZO, LOW);
+      delay(50);
+      digitalWrite(PIEZO, HIGH);
+      delay(100);
+      digitalWrite(PIEZO, LOW);
+    }
+  }
 }
