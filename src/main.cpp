@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <TM1637Display.h>
 #include <ESPmDNS.h>
 #include "DHT.h"
 #include "WiFi.h"
@@ -9,15 +8,15 @@ const char *ssid = "CoCoLabor";
 const char *password = "cocolabor1234";
 AsyncWebServer server(80);
 
-#define CLK 22
-#define DIO 21
 #define DHTPIN 14
 #define DHTTYPE DHT11
 #define PIEZO 26
 #define LIGHT 34
+#define BUTTON 16
 
 DHT dht(DHTPIN, DHTTYPE);
 boolean wasOpened = false;
+int buttonState = 0;
 
 String getWasOpened(){
   String siegel;
@@ -38,22 +37,6 @@ String readDHTTemperature()
 
   Serial.println(t);
   return String(t);
-}
-
-String readDHTHumidity()
-{
-  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-  float h = dht.readHumidity();
-  if (isnan(h))
-  {
-    Serial.println("Failed to read from DHT sensor!");
-    return "--";
-  }
-  else
-  {
-    Serial.println(h);
-    return String(h);
-  }
 }
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -133,23 +116,10 @@ String processor(const String &var)
   return String();
 }
 
-TM1637Display display = TM1637Display(CLK, DIO);
-
-const uint8_t celsius[] = {
-    SEG_A | SEG_B | SEG_F | SEG_G, // Circle
-    SEG_A | SEG_D | SEG_E | SEG_F  // C
-};
-
-const uint8_t percent[] = {
-    SEG_E | SEG_F,                        // I
-    SEG_E | SEG_F | SEG_A | SEG_B | SEG_G // P
-};
-
 void setup()
 {
   // Serial port for debugging purposes
   Serial.begin(9600);
-
   dht.begin();
 
   // Connect to Wi-Fi
@@ -189,17 +159,15 @@ void setup()
   MDNS.addService("http", "tcp", 80);
 
   pinMode(PIEZO, OUTPUT);
+  pinMode(BUTTON, INPUT);
 }
 
 void loop()
 {
-  display.setBrightness(7);
-  display.clear();
-  delay(1000);
-
   float temperatureInCelcius = dht.readTemperature();
   int lightValue = analogRead(LIGHT);
-  
+  buttonState = digitalRead(BUTTON);
+
   Serial.println(lightValue);
 
   if (temperatureInCelcius > 25)
@@ -224,5 +192,9 @@ void loop()
       delay(100);
       digitalWrite(PIEZO, LOW);
     }
+  }
+
+  if(buttonState == HIGH){
+    wasOpened = false;
   }
 }
