@@ -18,13 +18,16 @@ DHT dht(DHTPIN, DHTTYPE);
 boolean wasOpened = false;
 int buttonState = 0;
 
-String getWasOpened(){
+String getWasOpened()
+{
   String siegel;
-  if(wasOpened){
-     siegel = "ist gebrochen";
+  if (wasOpened)
+  {
+    siegel = "ist gebrochen";
   }
-  else{
-     siegel = "ist aktiviert";
+  else
+  {
+    siegel = "ist aktiviert";
   }
   return siegel;
 }
@@ -47,9 +50,10 @@ const char index_html[] PROGMEM = R"rawliteral(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
         integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.4.1/chart.min.js"
-        integrity="sha512-5vwN8yor2fFT9pgPS9p9R7AszYaNn0LkQElTXIsZFCL7ucT8zDCAqlQXDdaqgA1mZP47hdvztBMsIoFxq/FyyQ=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>
+        <script src="https://github.com/nagix/chartjs-plugin-streaming/releases/download/v1.5.0/chartjs-plugin-streaming.min.js"></script>
+    </head>
     <style>
         html {
             font-family: Arial;
@@ -79,6 +83,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 </head>
 
 <body>
+    <div id="container">
     <h2>Medical Distribution Service</h2>
     <h3>Temperature Tracking</h3>
     <p>
@@ -92,50 +97,92 @@ const char index_html[] PROGMEM = R"rawliteral(
         <span class="dht-labels">Siegel</span>
         <span id="siegel">%SIEGEL%</span>
     </p>
-    <div>
+
         <canvas id="myChart"></canvas>
     </div>
 </body>
 <script>
-    var ctx = document.getElementById('myChart');
-    const sensorLog = {
-        temperature:[],
-        time: []
-    }
+    let temperature;
+    var chartColors = {
+	blue: 'rgb(54, 162, 235)',
+};
 
-    var myChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: sensorLog.time,
-            datasets: [{
-                label: 'My First Dataset',
-                data: sensorLog.temperature,
-                fill: false,
-                borderColor: 'rgb(75, 192, 192)',
-                tension: 0.1
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
+function onRefresh(chart) {
+    getTemperature();
+    console.log(config.data.datasets.data)
+	chart.config.data.datasets.forEach(function(dataset) {
+		dataset.data.push({
+			x: Date.now(),
+			y: temperature
+		});
+	});
+}
 
-    setInterval(function () {
+var color = Chart.helpers.color;
+var config = {
+	type: 'line',
+	data: {
+		datasets: [{
+			label: 'Temperature',
+			backgroundColor: color(chartColors.blue).alpha(0.5).rgbString(),
+			borderColor: chartColors.blue,
+			fill: false,
+			cubicInterpolationMode: 'monotone',
+			data: []
+		}]
+	},
+	options: {
+		title: {
+			display: true,
+			text: 'Line chart (hotizontal scroll) sample'
+		},
+		scales: {
+			xAxes: [{
+				type: 'realtime'
+			}],
+			yAxes: [{
+				scaleLabel: {
+					display: true,
+					labelString: 'Temperature in °C'
+				}
+			}]
+		},
+		tooltips: {
+			mode: 'nearest',
+			intersect: false
+		},
+		hover: {
+			mode: 'nearest',
+			intersect: false
+		},
+		plugins: {
+			streaming: {
+				duration: 20000,
+				refresh: 1000,
+				delay: 2000,
+				onRefresh: onRefresh
+			}
+		}
+	}
+};
+
+window.onload = function() {
+	var ctx = document.getElementById('myChart').getContext('2d');
+	window.myChart = new Chart(ctx, config);
+};
+
+    function getTemperature() {
         var xhttp = new XMLHttpRequest();
+       
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
                 document.getElementById("temperature").innerHTML = this.responseText;
-                sensorLog.temperature.push(this.responseText);
-                sensorLog.time.push(Date.now());
+                temperature = this.responseText;
             }
         };
         xhttp.open("GET", "/temperature", true);
         xhttp.send();
-    }, 1000);
+    }
 
     setInterval(function () {
         var xhttp = new XMLHttpRequest();
@@ -159,7 +206,8 @@ String processor(const String &var)
   {
     return readDHTTemperature();
   }
-  else if(var == "SIEGEL"){
+  else if (var == "SIEGEL")
+  {
     return getWasOpened();
   }
   return String();
@@ -243,7 +291,8 @@ void loop()
     }
   }
 
-  if(buttonState == HIGH){
+  if (buttonState == HIGH)
+  {
     wasOpened = false;
   }
 }
